@@ -1,0 +1,6 @@
+things that should be considered for the bank 
+two types of transactions must be checked 
+first one: the origin of the transaction(bank or mobile banking)
+second (what type of schema should be used )
+proposed way => name, amount, time, receiver name, some kind of primary key
+bank account number of both the receiver and sender
