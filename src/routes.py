@@ -1,6 +1,5 @@
 from fastapi import APIRouter, status
-from src.routes import Receipt
-
+from src.schemas import Receipt
 receiptrouter = APIRouter()
 
 @receiptrouter.post("/verify_receipt", status_code= status.HTTP_201_CREATED)
