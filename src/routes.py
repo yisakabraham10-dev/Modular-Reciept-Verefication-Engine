@@ -1,8 +1,9 @@
-from pydantic import BaseModel
-import datetime
+from fastapi import APIRouter, status
+from src.routes import Receipt
 
-class Receipt(BaseModel):
-    bank_type: str
-    date_of_transaction: datetime
-    transaction_sender: str
-    amount: float
+receiptrouter = APIRouter()
+
+@receiptrouter.post("/verify_receipt", status_code= status.HTTP_201_CREATED)
+async def receinved_receipt(receipt: Receipt):
+    
+    received_receipt = receipt.model_dump()
