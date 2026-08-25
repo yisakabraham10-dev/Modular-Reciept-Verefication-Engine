@@ -1,12 +1,12 @@
 from sqlmodel import create_engine, text
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import create_async_engine
 from src.config import config
 
-engine = AsyncEngine(create_engine(
+engine = create_async_engine(
     url = config.DB_URL,
     echo = True
     # what is echo???
-))
+)
 
 async def connect_db():
     async with engine.begin() as conn:
