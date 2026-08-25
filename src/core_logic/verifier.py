@@ -7,4 +7,10 @@ def verifier(receipt: Receipt):
     print(receipt.transaction_reference)
     print(receipt.transaction_type)
     print(receipt.transaction_sender)
+
+    if receipt.amount < 0:
+        return False
+    if receipt.type != "ips bank transfer":
+        return True
+    # if a certain receipt exists in the database, that exists return true
     
