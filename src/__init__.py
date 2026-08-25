@@ -6,6 +6,7 @@ from src.db.main import connect_db
 @asynccontextmanager
 async def life_span(app: FastAPI):
     print ("server starting!!!") 
+    await connect_db()
     yield
     print ("server session has ended")
 
