@@ -1,20 +1,17 @@
-from sqlmodel import SQLModel, Field, column
-import sqlalchemy.dialects.postgresql as pg
+from sqlmodel import SQLModel, Field, Column
 from datetime import datetime
 from uuid import UUID, uuid4
+from decimal import Decimal
 
-class db_schema(SQLModel, table = True):
+class receipt(SQLModel, table = True):
     __tablename__ = "receipts"
-    id: UUID = Field(sa_column= column(pg.UUID,
-                                        nullable=False,
-                                        primary_key = True,
-                                        default= uuid4()))
+
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
     bank_type: str
-    date_of_transaction: datetime = Field(column(pg.TIMESTAMP, 
-                                                 default = datetime.now, 
-                                                 nullable = False))
+    date_of_transaction: datetime = Field(default_factory=datetime.now)
     transaction_sender: str
     amount: float
     transaction_reference: int
     transaction_type: str
-    interfaced_at: datetime
+    interfaced_at: datetime = Field(default_factory=datetime.now)
