@@ -1,6 +1,7 @@
-from sqlmodel import text
+from sqlmodel import text, SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine
 from src.config import config
+from src.db.models import receipt 
 
 engine = create_async_engine(
     url = config.DB_URL,
@@ -10,8 +11,6 @@ engine = create_async_engine(
 
 async def connect_db():
     async with engine.begin() as conn:
-        statement  = text("SELECT 'hello'")
 
-        result = await conn.execute(statement)
-
-        print (result.all())
+        await conn.run_sync(SQLModel.metadata.create_all 
+                            )

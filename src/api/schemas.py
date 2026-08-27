@@ -8,3 +8,4 @@ class Receipt(BaseModel):
     amount: float
     transaction_reference: int
     transaction_type: str
+    transaction_receiver: str 
