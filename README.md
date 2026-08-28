@@ -1,235 +1,625 @@
----
+# Modular Receipt Verification Engine — V1
 
-## 1. Background & Motivation
+A backend service for validating and verifying structured financial transaction data against a PostgreSQL database.
 
-In financial transactions, proof of payment is often submitted as screenshots or PDF receipts. Manual verification is slow, error-prone, and susceptible to fraud such as duplicate or altered receipts.
+The first version focuses deliberately on the **core verification engine** rather than OCR, PDF processing, Telegram integration, or external banking APIs.
 
-While several apps attempt to automate verification, most solutions are tied to a single interface or platform. There is a lack of **modular, reusable systems** that allow developers to plug in their own interface (Telegram bot, web app, CLI, etc.) while relying on a robust verification engine.
-
-This project aims to build a **flexible, modular receipt verification engine** that leverages OCR, database-driven duplicate detection, and optional API-based validation, allowing users to adopt their own front-end or workflow.
+The goal of V1 is to build a reliable and modular backend that can receive transaction data through an API, validate it, check the database, detect duplicates, and return a standardized verification result.
 
 ---
 
-## 2. Objectives
+## Project Goal
 
-The project has three simultaneous goals:
+The system is designed around a simple principle:
 
-1. **Learning Sandbox:**
-    - Explore OCR, Python backend programming, and system design.
-    - Understand database interaction and file handling.
-2. **Portfolio-Grade System:**
-    - Create a reusable, modular engine with clean architecture.
-    - Implement best practices in commit discipline, documentation, and testing.
-3. **Foundation for Fintech Infrastructure:**
-    - Build a pluggable, extensible system for future real-world applications.
-    - Consider security, concurrency, idempotency, and error-handling from day one.
+> Build the verification engine independently from the interface used to interact with it.
 
-Specific objectives:
+For V1, the interface is a **FastAPI HTTP API**.
 
-- Build a Python-based core engine for receipt verification.
-- Implement OCR for extracting receipt data.
-- Validate receipts using a mock/external API or structured simulation.
-- Detect duplicate submissions via database constraints.
-- Enable users to plug in their own interfaces or databases.
-- Implement secure and reliable file storage for uploaded receipts.
-- Structure the project for future expansion to production-grade fintech systems.
+In future versions, other interfaces such as Telegram, OCR, PDF processing, and external verification providers can be connected to the same core engine without rewriting the verification logic.
+
+### V1 Architecture
+
+```text
+                    ┌──────────────────┐
+                    │    API Client    │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │     FastAPI      │
+                    │   API Interface  │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │  Verification    │
+                    │     Service      │
+                    └────────┬─────────┘
+                             │
+                 ┌───────────┴───────────┐
+                 ▼                       ▼
+        ┌─────────────────┐    ┌─────────────────┐
+        │    Validation   │    │   PostgreSQL    │
+        │     Rules       │    │    Database     │
+        └─────────────────┘    └─────────────────┘
+                 │                       │
+                 └───────────┬───────────┘
+                             ▼
+                    ┌──────────────────┐
+                    │ Verification     │
+                    │     Result       │
+                    └──────────────────┘
+```
 
 ---
 
-## 3. Technical Approach
+# V1 Scope
 
-### 3.1 Core Engine
+V1 intentionally focuses on structured transaction data.
 
-- **Language:** Python
-- **Responsibilities:**
-    - OCR processing abstraction (Tesseract or equivalent)
-    - Receipt parsing logic (receipt number, amount, date)
-    - Validation rules (format checks, external verification API)
-    - Duplicate detection logic
-    - Returns a `VerificationResult` object for downstream use
+### Included in V1
 
-**Example Domain Object:**
+* FastAPI API
+* Pydantic request/response schemas
+* PostgreSQL database
+* SQLModel/SQLAlchemy database layer
+* Transaction data validation
+* Transaction lookup
+* Duplicate detection
+* Verification logic
+* Standardized verification results
+* Error handling
+* Unit tests
+* API/integration tests
+
+### Not included in V1
+
+The following are planned for later versions:
+
+* OCR
+* Image processing
+* PDF processing
+* Telegram bot
+* External bank APIs
+* Multiple bank-specific OCR parsers
+* Production-scale asynchronous processing
+* Advanced monitoring
+* CLI interface
+
+These features will be implemented as additional layers around the V1 core rather than being tightly coupled to the verification logic.
+
+---
+
+# Core Workflow
+
+A V1 verification request follows this process:
+
+```text
+Client
+  │
+  │ POST /verify
+  ▼
+FastAPI
+  │
+  ▼
+Request Validation
+  │
+  ▼
+Verification Service
+  │
+  ├── Validate transaction
+  │
+  ├── Search database
+  │
+  ├── Check duplicate
+  │
+  └── Determine result
+  │
+  ▼
+VerificationResult
+  │
+  ▼
+API Response
+```
+
+---
+
+# Example Request
+
+```http
+POST /verify
+Content-Type: application/json
+```
+
+```json
+{
+  "bank": "cbe",
+  "amount": "1500.00",
+  "transaction_reference": "TX123456",
+  "sender": "Abebe",
+  "receiver": "Yisak",
+  "transaction_date": "2026-08-28T10:30:00"
+}
+```
+
+# Example Response
+
+### Verified Transaction
+
+```json
+{
+  "status": "verified",
+  "transaction_reference": "TX123456",
+  "message": "Transaction verified"
+}
+```
+
+### Duplicate Transaction
+
+```json
+{
+  "status": "duplicate",
+  "transaction_reference": "TX123456",
+  "message": "Transaction has already been processed"
+}
+```
+
+### Invalid Transaction
+
+```json
+{
+  "status": "invalid",
+  "transaction_reference": "TX123456",
+  "message": "Invalid transaction data"
+}
+```
+
+---
+
+# Verification States
+
+The V1 engine uses explicit verification states.
+
+| Status      | Meaning                                                                   |
+| ----------- | ------------------------------------------------------------------------- |
+| `verified`  | Transaction is valid and has been successfully verified                   |
+| `duplicate` | Transaction has already been processed                                    |
+| `invalid`   | Transaction data fails validation                                         |
+| `failed`    | Verification could not be completed because of an internal/system failure |
+
+Keeping these states standardized allows future interfaces to consume the same result.
+
+For example:
+
+```text
+                    VerificationResult
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+           FastAPI      Telegram       CLI
+```
+
+The interface does not need to know how verification works internally.
+
+---
+
+# Project Structure
+
+The project is organized to keep the API, business logic, and database code separated.
+
+```text
+src/
+│
+├── api/
+│   ├── routes/
+│   │   └── verification.py
+│   └── schemas/
+│       └── verification.py
+│
+├── core/
+│   └── verifier.py
+│
+├── db/
+│   ├── models.py
+│   ├── main.py
+│   └── repository.py
+│
+└── main.py
+
+tests/
+│
+├── unit/
+│   ├── test_verifier.py
+│   └── test_schemas.py
+│
+└── integration/
+    ├── test_database.py
+    └── test_api.py
+```
+
+The exact structure may evolve as the project develops.
+
+---
+
+# Main Components
+
+## FastAPI
+
+FastAPI provides the HTTP interface for interacting with the verification engine.
+
+Its responsibility is primarily to:
+
+1. Receive requests
+2. Validate request schemas
+3. Pass data to the verification service
+4. Return verification results
+5. Handle HTTP-level errors
+
+The API should not contain the core verification rules.
+
+---
+
+## Verification Service
+
+The verification service contains the business logic.
+
+Conceptually:
 
 ```python
-class VerificationResult:
-    receipt_number: str
-    status: Literal["verified", "duplicate", "invalid", "failed"]
-    error_message: Optional[str]
-    timestamp: datetime
+result = verification_service.verify(transaction)
+```
+
+It should determine whether a transaction is:
+
+* valid
+* verified
+* duplicated
+* failed
+
+The verification service should remain independent of FastAPI so that other interfaces can use it later.
+
+---
+
+## Database
+
+PostgreSQL stores transaction records and provides persistent state for the verification engine.
+
+The database is responsible for enforcing important invariants such as transaction uniqueness.
+
+The application uses SQLModel/SQLAlchemy to communicate with PostgreSQL.
+
+---
+
+## Repository
+
+The repository layer separates database operations from business logic.
+
+Examples of operations include:
+
+```text
+create_transaction()
+get_transaction_by_reference()
+transaction_exists()
+```
+
+This prevents the verification service from becoming tightly coupled to SQL queries and database implementation details.
+
+---
+
+# Transaction Model
+
+A transaction contains information such as:
+
+```text
+ID
+Bank
+Transaction Date
+Sender
+Receiver
+Amount
+Transaction Reference
+Transaction Type
+Interface Timestamp
+```
+
+Financial amounts should be represented using `Decimal` rather than floating-point values.
+
+Transaction references are treated as identifiers rather than mathematical numbers.
+
+---
+
+# Database Verification
+
+A simplified verification process looks like:
+
+```text
+Incoming transaction
+        │
+        ▼
+Validate fields
+        │
+        ▼
+Find transaction reference
+        │
+        ▼
+Does it already exist?
+       / \
+     Yes  No
+      │    │
+      ▼    ▼
+ Duplicate  Continue verification
+               │
+               ▼
+        Store transaction
+               │
+               ▼
+            Verified
+```
+
+Database constraints are used alongside application logic so that correctness does not depend entirely on the API code.
+
+---
+
+# Testing Strategy
+
+Testing is an important part of V1 because the verification engine must behave predictably for different transaction states.
+
+### Unit tests
+
+Test individual pieces of logic:
+
+```text
+Valid transaction
+Invalid amount
+Invalid transaction reference
+Duplicate detection
+Verification status
+Schema validation
+```
+
+### Integration tests
+
+Test interactions between components:
+
+```text
+FastAPI → Verification Service → PostgreSQL
+```
+
+The goal is to verify that the complete workflow works correctly, not just that individual functions work in isolation.
+
+---
+
+# Development Strategy
+
+V1 is intentionally being developed incrementally.
+
+### Phase 1 — Database Foundation
+
+* [ ] Finalize transaction model
+* [ ] Configure PostgreSQL
+* [ ] Configure database sessions
+* [ ] Implement repository
+* [ ] Implement transaction creation
+* [ ] Implement transaction lookup
+* [ ] Add database constraints/indexes
+
+### Phase 2 — Verification Engine
+
+* [ ] Define `VerificationResult`
+* [ ] Implement validation rules
+* [ ] Implement verification service
+* [ ] Implement duplicate detection
+* [ ] Connect verification service to repository
+* [ ] Return standardized results
+
+### Phase 3 — API
+
+* [ ] Implement verification endpoint
+* [ ] Connect endpoint to verification service
+* [ ] Implement proper HTTP responses
+* [ ] Implement API-level error handling
+
+### Phase 4 — Testing
+
+* [ ] Unit tests
+* [ ] Database integration tests
+* [ ] API tests
+* [ ] Edge-case testing
+* [ ] Duplicate/race-condition testing
+
+### V1 Completion Criteria
+
+V1 is considered complete when the system can reliably:
+
+```text
+Receive structured transaction data
+            ↓
+Validate it
+            ↓
+Check PostgreSQL
+            ↓
+Detect duplicates
+            ↓
+Determine verification status
+            ↓
+Return a standardized result
 ```
 
 ---
 
-### 3.2 Database Layer (Persistence)
+# Future Development
 
-- Use PostgreSQL initially; allow later pluggable database implementations via an abstract repository interface.
-- Track uploaded receipts, verification status, timestamps, and metadata.
-- Enforce **unique constraints** on receipt numbers to prevent duplicates.
-- Optional: Implement audit trail for each verification attempt.
+V1 provides the core engine that future components will use.
 
----
+## V2 — OCR & File Processing
 
-### 3.3 Interface Layer (Adapters)
+Future versions will allow users to submit:
 
-- Build adapters for different usage scenarios:
-    - Telegram bot interface
-    - REST API (FastAPI)
-    - CLI or web interface
-- Each adapter interacts only with the **core engine**, never implementing verification logic itself.
+* Images
+* PDFs
+* Screenshots of receipts
 
----
+The future pipeline will look like:
 
-### 3.4 File Handling & Security
-
-- Store uploaded files securely:
-    - **Local storage** for learning purposes.
-    - Optionally integrate **cloud storage** (AWS S3, GCP, Azure) for production-level reliability.
-- File validation: limit types (PNG, JPG, PDF) and size (<5 MB).
-- Use unique filenames and access control.
-- Track processing status in database (pending, verified, failed).
-
----
-
-### 3.5 OCR & Parsing
-
-- OCR library: Tesseract OCR
-- Preprocess images: resize, grayscale, thresholding
-- Extract receipt numbers using regex or structured parsing
-- Handle OCR errors gracefully; flag uncertain results for manual review
-
----
-
-### 3.6 Reliability & Concurrency
-
-- Asynchronous processing for OCR to avoid blocking requests
-- Handle simultaneous verification requests safely
-- Retry mechanism for failed API calls
-- Deterministic outputs: same input → same verification result
-
----
-
-## 4. Project Structure (Proposed)
-
-```
-receipt_verifier/
-│
-├── core/                     # Core engine logic
-│   ├── ocr.py
-│   ├── parser.py
-│   ├── validator.py
-│   ├── fraud_checks.py
-│   └── service.py
-│
-├── infrastructure/           # Database & storage adapters
-│   ├── postgres_repository.py
-│   └── storage_adapter.py
-│
-├── api/                      # REST API layer (FastAPI)
-│   └── main.py
-│
-├── bot/                      # Telegram bot adapter
-│   └── telegram_bot.py
-│
-├── tests/                    # Unit and integration tests
-│
-└── scripts/                  # Utility scripts for setup & deployment
+```text
+Receipt Image/PDF
+       ↓
+File Processing
+       ↓
+OCR
+       ↓
+Receipt Parser
+       ↓
+Structured Transaction
+       ↓
+V1 Verification Engine
+       ↓
+VerificationResult
 ```
 
----
-
-## 5. Security Considerations
-
-- Validate file types and sizes
-- Generate unique filenames to avoid collisions
-- Serve files only via controlled application endpoints
-- Sanitize OCR outputs before using them in database queries
-- Rate limiting for API endpoints
-- Handle database transactions safely to prevent race conditions
+The important design goal is that OCR should **produce structured transaction data** rather than implementing verification itself.
 
 ---
 
-## 6. Expected Learning Outcomes
+# V3 — Telegram Interface
 
-By completing this project, you will:
+A Telegram bot can later act as another interface:
 
-- Build a **modular, reusable Python engine**
-- Gain hands-on experience with **FastAPI, databases, and OCR**
-- Learn **secure file handling and validation**
-- Understand **system design and clean architecture principles**
-- Learn **Git workflow discipline**: meaningful commits, branching, merging
-- Learn to **abstract infrastructure** for flexibility and scalability
-- Build a portfolio-grade project demonstrating professional engineering practices
-
----
-
-## 7. Timeline (4 Weeks – Semester Break)
-
-| Week | Tasks |
-| --- | --- |
-| 1 | Setup Python project, Git repo, PostgreSQL, basic FastAPI structure |
-| 2 | Implement core engine: OCR, parsing, verification logic, basic tests |
-| 3 | Add database layer with duplicate detection and status tracking; handle edge cases |
-| 4 | Build adapters (Telegram bot, REST API), finalize documentation, testing, and code cleanup |
-
----
-
-## 8. Scope & Limitations
-
-- Educational project; no real financial transactions will be handled.
-- External bank API calls may be simulated for demonstration purposes.
-- Not intended to be deployed for production banking without proper compliance.
-- Focus is on **modularity, reliability, and engineering skill development**.
-
----
-
-## 9. Success Criteria
-
-- Core engine works correctly with unit tests
-- Receipts can be uploaded and processed reliably
-- Duplicate detection works correctly
-- Multiple adapters (Telegram bot, REST API) work seamlessly with engine
-- Project is fully documented, structured, and version-controlled
-
----
-
-**Summary:**
-
-This project is designed to be **a learning platform, a portfolio-grade backend system, and a foundation for fintech-grade infrastructure**. By separating core logic from adapters, abstracting storage, and focusing on reliability and security, this project will teach **real engineering skills** while producing something demonstrable and professional.
-
----
-
-```mermaid
-graph TD
-    A["User Submits Receipt"] --> B["Interface Layer (Telegram/API/CLI)"]
-    B --> C["File Validation"]
-    C --> D{"Valid File?"}
-    D -- No --> E["Return Error to User"]
-    D -- Yes --> F["Store File Securely"]
-    F --> G["Core Engine: OCR Processing"]
-    G --> H["Extract Receipt Data (Number, Amount, Date)"]
-    H --> I["Parser: Structure Data"]
-    I --> J["Validator: Check Format & Rules"]
-    J --> K{"Valid Format?"}
-    K -- No --> L["Mark as Invalid"]
-    K -- Yes --> M["Database: Check for Duplicates"]
-    M --> N{"Duplicate Exists?"}
-    N -- Yes --> O["Mark as Duplicate"]
-    N -- No --> P["External API Validation (Optional)"]
-    P --> Q{"API Confirms?"}
-    Q -- No --> R["Mark as Failed Verification"]
-    Q -- Yes --> S["Mark as Verified"]
-    S --> T["Store Verification Result in Database"]
-    O --> T
-    L --> T
-    R --> T
-    T --> U["Return VerificationResult to Interface"]
-    U --> V["Interface Returns Response to User"]
-    E --> V
-    
-    %% Database operations
-    M -.-> W["PostgreSQL: receipts table"]
-    T -.-> W
-    
-    %% File storage
-    F -.-> X["Storage Adapter (Local/Cloud)"]
+```text
+Telegram
+    ↓
+Telegram Adapter
+    ↓
+Verification Engine
+    ↓
+VerificationResult
+    ↓
+Telegram Response
 ```
+
+The verification engine should not need to know that the request originated from Telegram.
+
+---
+
+# Future External Verification
+
+External bank or payment-system APIs can eventually be added through provider interfaces.
+
+Conceptually:
+
+```text
+             Verification Service
+                      │
+                      ▼
+             Verification Provider
+                /           \
+               /             \
+              ▼               ▼
+       Mock Provider      Bank Provider
+```
+
+This allows external integrations to be added without rewriting the core verification engine.
+
+---
+
+# Design Principles
+
+The project follows several important principles:
+
+### Separation of concerns
+
+The API, database, and verification logic should have clearly defined responsibilities.
+
+### Modularity
+
+New interfaces and verification providers should be addable without rewriting the core engine.
+
+### Database integrity
+
+Important invariants should be enforced by PostgreSQL as well as application logic.
+
+### Explicit results
+
+Verification should return a standardized result rather than arbitrary responses.
+
+### Testability
+
+Core business logic should be testable independently of FastAPI and external interfaces.
+
+### Incremental development
+
+The project is developed from a working core toward more complex functionality rather than implementing every feature simultaneously.
+
+---
+
+# Technology Stack
+
+| Component              | Technology                     |
+| ---------------------- | ------------------------------ |
+| Language               | Python                         |
+| API                    | FastAPI                        |
+| Validation             | Pydantic                       |
+| ORM / Database Layer   | SQLModel / SQLAlchemy          |
+| Database               | PostgreSQL                     |
+| Testing                | Pytest                         |
+| Future OCR             | Tesseract                      |
+| Future Interface       | Telegram                       |
+| Future File Processing | PDF/Image processing libraries |
+
+---
+
+# Current Status
+
+**Version:** `V1 — In Development`
+
+The current implementation contains the initial FastAPI and database foundation.
+
+The remaining core work is primarily:
+
+* Database repository
+* Verification service
+* Verification result
+* Duplicate detection
+* Error handling
+* Tests
+
+Once these components are complete, the V1 core verification engine will be considered finished.
+
+---
+
+# Long-Term Vision
+
+The long-term goal is not simply to build a receipt API.
+
+The goal is to build a **modular transaction verification engine** that can accept transaction information from multiple sources while keeping the underlying verification logic independent.
+
+```text
+                     ┌──────────────┐
+                     │    Telegram  │
+                     └──────┬───────┘
+                            │
+                     ┌──────▼───────┐
+                     │     OCR      │
+                     └──────┬───────┘
+                            │
+                     ┌──────▼───────┐
+                     │ Receipt      │
+                     │ Parser       │
+                     └──────┬───────┘
+                            │
+                            ▼
+                 ┌──────────────────────┐
+                 │  Verification Engine │
+                 └──────────┬───────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+       ┌──────────────┐           ┌──────────────┐
+       │  PostgreSQL  │           │ External APIs│
+       └──────────────┘           └──────────────┘
+```
+
+**V1 builds the center of this system.**
+
+Everything else can be added around it later.
