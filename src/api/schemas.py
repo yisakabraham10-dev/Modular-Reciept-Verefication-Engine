@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 
-class Receipt(BaseModel):
+class Receipt_Model(BaseModel):
     bank_type: str
     date_of_transaction: datetime
     transaction_sender: str
