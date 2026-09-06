@@ -12,7 +12,7 @@ class receipt(SQLModel, table = True):
     date_of_transaction: datetime = Field(default_factory=datetime.now)
     transaction_sender: str
     amount: Decimal
-    transaction_reference: int
+    transaction_reference: int = Field(unique= True)
     transaction_type: str
     interfaced_at: datetime = Field(default_factory=datetime.now)
     transaction_receiver: str

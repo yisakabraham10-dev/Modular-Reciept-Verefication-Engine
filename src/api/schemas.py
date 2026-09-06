@@ -1,11 +1,13 @@
 from pydantic import BaseModel
 from datetime import datetime
+from decimal import Decimal
 
-class Receipt_Model(BaseModel):
+
+class Receipt(BaseModel):
     bank_type: str
     date_of_transaction: datetime
     transaction_sender: str
-    amount: float
-    transaction_reference: int
+    amount: Decimal
+    transaction_reference: str
     transaction_type: str
-    transaction_receiver: str 
+    transaction_receiver: str
