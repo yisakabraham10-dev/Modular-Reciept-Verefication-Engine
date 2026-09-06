@@ -1,15 +1,21 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from src.api.schemas import Receipt
-from src.core_logic.verifier import verifier
+from src.db.main import get_session
+from src.db.repository import TransactionRepository
+from src.service import TransactionService
+
 
 receiptrouter = APIRouter()
 
-@receiptrouter.post("/verify_receipt", status_code= status.HTTP_201_CREATED)
-async def receinved_receipt(receipt: Receipt):
 
-    result = verifier(receipt)
+@receiptrouter.post("/verify_receipt")
+async def receive_receipt(
+    receipt_data: Receipt,
+    session: AsyncSession = Depends(get_session),
+):
+    repository = TransactionRepository(session)
+    service = TransactionService(repository)
 
-    if result:
-        return{"message": "verified"}
-    if not result:
-        return {"message": "transaction not verified!!!"}
+    return await service.verify(receipt_data)
