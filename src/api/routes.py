@@ -19,3 +19,7 @@ async def receive_receipt(
     service = TransactionService(repository)
 
     return await service.verify(receipt_data)
+
+@receiptrouter.post("/vereify_link")
+async def receive_link():
+    continue
